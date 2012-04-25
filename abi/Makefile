@@ -1,7 +1,7 @@
 
 .PHONY:	all gcc dtmc intel clean test check
 
-all:	gcc dtmc intel 
+all:	gcc 
 
 gcc:
 	$(MAKE) -C gcc
@@ -24,8 +24,8 @@ intel%:
 clean:
 	$(MAKE) -C test clean
 	$(MAKE) -C gcc clean
-	$(MAKE) -C dtmc clean
-	$(MAKE) -C intel clean
+#	$(MAKE) -C dtmc clean
+#	$(MAKE) -C intel clean
 
 # simple test and check that use explicit calls to gcc libitm library
 test:
@@ -37,11 +37,11 @@ check:
 # test-all and check-all need TM compilers (INTEL/DTMC/GCC) in the path 
 test-all:
 	$(MAKE) -C gcc test
-	$(MAKE) -C dtmc test
-	$(MAKE) -C intel test
+#	$(MAKE) -C dtmc test
+#	$(MAKE) -C intel test
 
 check-all:
 	$(MAKE) -C gcc check
-	$(MAKE) -C dtmc check
-	$(MAKE) -C intel check
+#	$(MAKE) -C dtmc check
+#	$(MAKE) -C intel check
 

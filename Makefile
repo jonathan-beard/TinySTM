@@ -93,8 +93,8 @@ DEFINES += -DIRREVOCABLE_ENABLED
 # from disabling them.
 ########################################################################
 
-# DEFINES += -DINTERNAL_STATS
-DEFINES += -UINTERNAL_STATS
+DEFINES += -DINTERNAL_STATS
+#DEFINES += -UINTERNAL_STATS
 
 ########################################################################
 # Ensure that the global clock does not share the same cache line than
@@ -180,10 +180,10 @@ DEFINES += -ULOCK_IDX_SWAP
 # Output many (DEBUG) or even mode (DEBUG2) debugging messages.
 ########################################################################
 
-# DEFINES += -DDEBUG
-DEFINES += -UDEBUG
-# DEFINES += -DDEBUG2
-DEFINES += -UDEBUG2
+DEFINES += -DDEBUG
+# DEFINES += -UDEBUG
+DEFINES += -DDEBUG2
+# DEFINES += -UDEBUG2
 
 ########################################################################
 # Catch SIGBUS and SIGSEGV signals

@@ -9,6 +9,8 @@ AR = ar
 DOXYGEN ?= doxygen
 UNIFDEF ?= unifdef
 
+CFG = debug
+
 # Debug/optimization flags
 # Default config is optimization
 ifeq ($(CFG),debug)

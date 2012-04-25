@@ -24,6 +24,8 @@
 
 #include "wrappers.h"
 
+extern void *_dabase;
+
 #define COMPILE_TIME_ASSERT(pred)       switch (0) { case 0: case pred: ; }
 
 #define ALLOW_MISALIGNED_ACCESSES
@@ -87,8 +89,17 @@ static void sanity_checks()
  * LOADS
  * ################################################################### */
 
+#define addr_validate_fix(addr)						\
+    do {								\
+	assert(((unsigned long)addr & 0xFF00000000000000UL) == 0x5000000000000000UL); \
+	addr = (void *)((unsigned long)addr -				\
+			0x5000000000000000UL +				\
+			(unsigned long)_dabase);			\
+    } while(0)								\
+
 uint8_t stm_load_u8(TXPARAMS volatile uint8_t *addr)
 {
+    addr_validate_fix(addr);
   if (sizeof(stm_word_t) == 4) {
     convert_32_t val;
     val.u32 = (uint32_t)TM_LOAD(TXARGS (volatile stm_word_t *)((uintptr_t)addr & ~(uintptr_t)0x03));
@@ -102,6 +113,7 @@ uint8_t stm_load_u8(TXPARAMS volatile uint8_t *addr)
 
 uint16_t stm_load_u16(TXPARAMS volatile uint16_t *addr)
 {
+    addr_validate_fix(addr);
   if (((uintptr_t)addr & 0x01) != 0) {
     uint16_t val;
     stm_load_bytes(TXARGS (volatile uint8_t *)addr, (uint8_t *)&val, sizeof(uint16_t));
@@ -119,6 +131,7 @@ uint16_t stm_load_u16(TXPARAMS volatile uint16_t *addr)
 
 uint32_t stm_load_u32(TXPARAMS volatile uint32_t *addr)
 {
+    addr_validate_fix(addr);
   if (((uintptr_t)addr & 0x03) != 0) {
     uint32_t val;
     stm_load_bytes(TXARGS (volatile uint8_t *)addr, (uint8_t *)&val, sizeof(uint32_t));
@@ -134,6 +147,7 @@ uint32_t stm_load_u32(TXPARAMS volatile uint32_t *addr)
 
 uint64_t stm_load_u64(TXPARAMS volatile uint64_t *addr)
 {
+    addr_validate_fix(addr);
   if (((uintptr_t)addr & 0x07) != 0) {
     uint64_t val;
     stm_load_bytes(TXARGS (volatile uint8_t *)addr, (uint8_t *)&val, sizeof(uint64_t));
@@ -151,7 +165,7 @@ uint64_t stm_load_u64(TXPARAMS volatile uint64_t *addr)
 char stm_load_char(TXPARAMS volatile char *addr)
 {
   convert_8_t val;
-  val.u8 = stm_load_u8(TXARGS (volatile uint8_t *)addr);
+    val.u8 = stm_load_u8(TXARGS (volatile uint8_t *)addr);
   return val.s8;
 }
 
@@ -223,6 +237,7 @@ double stm_load_double(TXPARAMS volatile double *addr)
 void *stm_load_ptr(TXPARAMS volatile void **addr)
 {
   union { stm_word_t w; void *v; } convert;
+    addr_validate_fix(addr);
   convert.w = TM_LOAD(TXARGS (stm_word_t *)addr);
   return convert.v;
 }
@@ -235,6 +250,7 @@ void stm_load_bytes(TXPARAMS volatile uint8_t *addr, uint8_t *buf, size_t size)
 
   if (size == 0)
     return;
+  addr_validate_fix(addr);
   i = (uintptr_t)addr & (sizeof(stm_word_t) - 1);
   if (i != 0) {
     /* First bytes */
@@ -271,6 +287,7 @@ void stm_load_bytes(TXPARAMS volatile uint8_t *addr, uint8_t *buf, size_t size)
 
 void stm_store_u8(TXPARAMS volatile uint8_t *addr, uint8_t value)
 {
+  addr_validate_fix(addr);
   if (sizeof(stm_word_t) == 4) {
     convert_32_t val, mask;
     val.u8[(uintptr_t)addr & 0x03] = value;
@@ -288,6 +305,7 @@ void stm_store_u8(TXPARAMS volatile uint8_t *addr, uint8_t value)
 
 void stm_store_u16(TXPARAMS volatile uint16_t *addr, uint16_t value)
 {
+  addr_validate_fix(addr);
   if (((uintptr_t)addr & 0x01) != 0) {
     stm_store_bytes(TXARGS (volatile uint8_t *)addr, (uint8_t *)&value, sizeof(uint16_t));
   } else if (sizeof(stm_word_t) == 4) {
@@ -307,6 +325,7 @@ void stm_store_u16(TXPARAMS volatile uint16_t *addr, uint16_t value)
 
 void stm_store_u32(TXPARAMS volatile uint32_t *addr, uint32_t value)
 {
+  addr_validate_fix(addr);
   if (((uintptr_t)addr & 0x03) != 0) {
     stm_store_bytes(TXARGS (volatile uint8_t *)addr, (uint8_t *)&value, sizeof(uint32_t));
   } else if (sizeof(stm_word_t) == 4) {
@@ -322,6 +341,7 @@ void stm_store_u32(TXPARAMS volatile uint32_t *addr, uint32_t value)
 
 void stm_store_u64(TXPARAMS volatile uint64_t *addr, uint64_t value)
 {
+  addr_validate_fix(addr);
   if (((uintptr_t)addr & 0x07) != 0) {
     stm_store_bytes(TXARGS (volatile uint8_t *)addr, (uint8_t *)&value, sizeof(uint64_t));
   } else if (sizeof(stm_word_t) == 4) {
@@ -367,6 +387,7 @@ void stm_store_int(TXPARAMS volatile int *addr, int value)
 
 void stm_store_uint(TXPARAMS volatile unsigned int *addr, unsigned int value)
 {
+  addr_validate_fix(addr);
   stm_store_u32(TXARGS (volatile uint32_t *)addr, (uint32_t)value);
 }
 
@@ -409,6 +430,7 @@ void stm_store_double(TXPARAMS volatile double *addr, double value)
 void stm_store_ptr(TXPARAMS volatile void **addr, void *value)
 {
   union { stm_word_t w; void *v; } convert;
+  addr_validate_fix(addr);
   convert.v = value;
   TM_STORE(TXARGS (stm_word_t *)addr, convert.w);
 }
@@ -421,6 +443,7 @@ void stm_store_bytes(TXPARAMS volatile uint8_t *addr, uint8_t *buf, size_t size)
 
   if (size == 0)
     return;
+  addr_validate_fix(addr);
   i = (uintptr_t)addr & (sizeof(stm_word_t) - 1);
   if (i != 0) {
     /* First bytes */
@@ -465,6 +488,7 @@ void stm_set_bytes(TXPARAMS volatile uint8_t *addr, uint8_t byte, size_t count)
   if (count == 0)
     return;
 
+  addr_validate_fix(addr);
   for (i = 0; i < sizeof(stm_word_t); i++)
     val.b[i] = byte;
 

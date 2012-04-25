@@ -31,7 +31,7 @@ libitm.a: abi.o arch.o
 	$(AR) cru $@ $^
 
 libitm.so: 	abi.do arch.o 
-	$(CC) -fPIC $(CFLAGS) -shared -Wl,--version-script,../lib.map -o $@ $^
+	$(CC) -fPIC $(CFLAGS) -shared -lpthread -Wl,--version-script,../lib.map -o $@ $^
 # TODO Check if strip is really needed
 #	strip $@
 #	cp libitm.so libitm.so.1

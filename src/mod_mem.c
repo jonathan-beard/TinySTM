@@ -23,11 +23,16 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
 
 #include "mod_mem.h"
 
 #include "gc.h"
 #include "stm.h"
+#include "pheap.h"
+
+void *_dabase;
 
 /* ################################################################### *
  * TYPES
@@ -43,6 +48,7 @@ typedef struct mod_mem_info {           /* Memory descriptor */
   mod_mem_block_t *freed;               /* Memory freed by this transation (freed upon commit) */
 } mod_mem_info_t;
 
+static struct pheap *ph;
 static int mod_mem_key;
 static int mod_mem_initialized = 0;
 #ifdef EPOCH_GC
@@ -52,7 +58,14 @@ static int mod_mem_use_gc = 0;
 /* ################################################################### *
  * FUNCTIONS
  * ################################################################### */
-
+#define addr_validate_fix(addr)						\
+    do {								\
+	assert(((unsigned long)addr & 0xFF00000000000000UL) == 0x5000000000000000UL); \
+	addr = (void *)((unsigned long)addr -				\
+			0x5000000000000000UL +				\
+			(unsigned long)_dabase);			\
+    } while(0)								\
+			      
 /*
  * Called by the CURRENT thread to allocate memory within a transaction.
  */
@@ -89,14 +102,17 @@ void *stm_malloc(TXPARAMS size_t size)
     perror("malloc");
     exit(1);
   }
-  if ((mb->addr = malloc(size)) == NULL) {
+  if ((mb->addr = pmalloc(ph, size)) == NULL) {
     perror("malloc");
     exit(1);
   }
   mb->next = mi->allocated;
   mi->allocated = mb;
-
-  return mb->addr;
+  
+  assert(mb->addr > _dabase);
+  return (void *)((unsigned long)mb->addr - 
+		  (unsigned long)_dabase + 
+		  0x5000000000000000UL);
 }
 
 /*
@@ -135,14 +151,18 @@ void *stm_calloc(TXPARAMS size_t nm, size_t size)
     perror("malloc");
     exit(1);
   }
-  if ((mb->addr = calloc(nm, size)) == NULL) {
+  if ((mb->addr = pmalloc(ph, nm * size)) == NULL) {
     perror("malloc");
     exit(1);
   }
+  memset(mb->addr, 0x00, nm * size);
   mb->next = mi->allocated;
   mi->allocated = mb;
 
-  return mb->addr;
+  assert(mb->addr > _dabase);
+  return (void *)((unsigned long)mb->addr - 
+		  (unsigned long)_dabase + 
+		  0x5000000000000000UL);
 }
 
 /*
@@ -179,6 +199,9 @@ void stm_free2(TXPARAMS void *addr, size_t idx, size_t size)
   }
 #endif /* HYBRID_ASF */
 
+  addr_validate_fix(addr);
+  stm_tx_attr_t *attr = stm_get_attributes(TXARGS);
+
   /* TODO: if block allocated in same transaction => no need to overwrite */
   if (size > 0) {
     /* Overwrite to prevent inconsistent reads */
@@ -192,7 +215,10 @@ void stm_free2(TXPARAMS void *addr, size_t idx, size_t size)
     a = (stm_word_t *)addr + idx;
     while (size-- > 0) {
       /* Acquire lock and update version number */
-      stm_store2(TXARGS a++, 0, 0);
+	if (attr->read_only)
+	    stm_load(TXARGS a++);
+	else
+	    stm_store2(TXARGS a++, 0, 0);
     }
   }
   /* Schedule for removal */
@@ -267,9 +293,9 @@ static void mod_mem_on_commit(TXPARAMS void *arg)
       if (mod_mem_use_gc)
         gc_free(mb->addr, t);
       else
-        free(mb->addr);
+	  pfree(ph, mb->addr);
 #else /* ! EPOCH_GC */
-      free(mb->addr);
+      pfree(ph, mb->addr);
 #endif /* ! EPOCH_GC */
       free(mb);
       mb = next;
@@ -294,7 +320,7 @@ static void mod_mem_on_abort(TXPARAMS void *arg)
     mb = mi->allocated;
     while (mb != NULL) {
       next = mb->next;
-      free(mb->addr);
+      pfree(ph, mb->addr);
       free(mb);
       mb = next;
     }
@@ -313,6 +339,12 @@ static void mod_mem_on_abort(TXPARAMS void *arg)
   }
 }
 
+size_t stm_usable_size(void *addr)
+{
+    addr_validate_fix(addr);
+    return pmalloc_usable_size(ph, addr);
+}
+
 /*
  * Initialize module.
  */
@@ -320,6 +352,14 @@ void mod_mem_init(int gc)
 {
   if (mod_mem_initialized)
     return;
+  
+  _dabase = pmmheap(8192UL, 2147483648UL, &ph);
+
+  if (ph == NULL)
+      fprintf(stderr, "pmmheap returned NULL ph\n");
+
+  if (_dabase == NULL)
+      fprintf(stderr, "pmmheap returned NULL _dabase\n");
 
   stm_register(mod_mem_on_thread_init, mod_mem_on_thread_exit, NULL, NULL, mod_mem_on_commit, mod_mem_on_abort, NULL);
   mod_mem_key = stm_create_specific();

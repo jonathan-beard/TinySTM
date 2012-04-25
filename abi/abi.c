@@ -56,6 +56,7 @@
 extern void _ITM_CALL_CONVENTION _ITM_siglongjmp(sigjmp_buf env, int val) __attribute__ ((noreturn));
 
 #include "stm.c"
+#include "mod_pheap.c"
 #include "mod_mem.c"
 #ifdef TM_GCC
 #include "gcc/alloc_cpp.c"
@@ -208,7 +209,7 @@ inline size_t block_size(void *ptr)
 # include <malloc.h>
 inline size_t block_size(void *ptr)
 {
-  return malloc_usable_size(ptr);
+    return stm_usable_size(ptr);
 }
 #else /* ! (defined(__APPLE__) || defined(__linux__) || defined(__CYGWIN__)) */
 # error "Target OS does not provide size of allocated blocks"
@@ -487,6 +488,8 @@ finishing:
 
   ATOMIC_STORE(&abi_status, ABI_NOT_INITIALIZED);
 }
+
+ static struct pheap *ph;
 
 int ATTR_CONSTRUCTOR _ITM_CALL_CONVENTION _ITM_initializeProcess(void)
 {
